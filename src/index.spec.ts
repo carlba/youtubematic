@@ -27,6 +27,7 @@ describe('getConfig', () => {
     delete process.env['DOWNLOAD_PATH'];
     delete process.env['CHANNELS'];
     delete process.env['MAX_EPISODES'];
+    delete process.env['MAX_AGE_DAYS'];
     delete process.env['YT_DLP_PATH'];
 
     const config = getConfig();
@@ -34,6 +35,7 @@ describe('getConfig', () => {
     expect(config.downloadPath).toBe('/mnt/downloads');
     expect(config.channels).toEqual([]);
     expect(config.maxEpisodes).toBeNull();
+    expect(config.maxAgeDays).toBeNull();
     expect(config.ytDlpPath).toBe('yt-dlp');
   });
 
@@ -96,6 +98,22 @@ describe('getConfig', () => {
     expect(config.maxEpisodes).toBeNull();
   });
 
+  it('should parse MAX_AGE_DAYS as a number', () => {
+    process.env['MAX_AGE_DAYS'] = '30';
+
+    const config = getConfig();
+
+    expect(config.maxAgeDays).toBe(30);
+  });
+
+  it('should return null for MAX_AGE_DAYS when not set', () => {
+    delete process.env['MAX_AGE_DAYS'];
+
+    const config = getConfig();
+
+    expect(config.maxAgeDays).toBeNull();
+  });
+
   it('should read YT_DLP_PATH from environment', () => {
     process.env['YT_DLP_PATH'] = '/usr/local/bin/yt-dlp';
 
@@ -110,6 +128,7 @@ describe('buildYtDlpArgs', () => {
     downloadPath: '/mnt/downloads',
     channels: [],
     maxEpisodes: null,
+    maxAgeDays: null,
     ytDlpPath: 'yt-dlp',
   };
 
@@ -163,6 +182,32 @@ describe('buildYtDlpArgs', () => {
     expect(jsRuntimeIndex).toBeGreaterThan(-1);
     expect(args[jsRuntimeIndex + 1]).toBe('node');
   });
+
+  it('should include --dateafter when maxAgeDays is set', () => {
+    const config: Config = { ...baseConfig, maxAgeDays: 7 };
+    const channel = 'https://www.youtube.com/@testchannel';
+    const args = buildYtDlpArgs(channel, config);
+    const dateAfterIndex = args.indexOf('--dateafter');
+    const expectedDate = new Date();
+
+    expectedDate.setDate(expectedDate.getDate() - 7);
+
+    const expectedValue = [
+      expectedDate.getFullYear().toString(),
+      String(expectedDate.getMonth() + 1).padStart(2, '0'),
+      String(expectedDate.getDate()).padStart(2, '0'),
+    ].join('');
+
+    expect(dateAfterIndex).toBeGreaterThan(-1);
+    expect(args[dateAfterIndex + 1]).toBe(expectedValue);
+  });
+
+  it('should not include --dateafter when maxAgeDays is null', () => {
+    const channel = 'https://www.youtube.com/@testchannel';
+    const args = buildYtDlpArgs(channel, baseConfig);
+
+    expect(args).not.toContain('--dateafter');
+  });
 });
 
 describe('downloadChannel', () => {
@@ -170,6 +215,7 @@ describe('downloadChannel', () => {
     downloadPath: '/mnt/downloads',
     channels: [],
     maxEpisodes: null,
+    maxAgeDays: null,
     ytDlpPath: 'yt-dlp',
   };
 
