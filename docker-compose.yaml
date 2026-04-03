@@ -1,0 +1,11 @@
+services:
+  youtubematic:
+    build: .
+    volumes:
+      - ${DOWNLOAD_PATH:-/mnt/downloads}:/mnt/downloads
+    environment:
+      - DOWNLOAD_PATH=/mnt/downloads
+      - CHANNELS=${CHANNELS:-}
+      - MAX_EPISODES=${MAX_EPISODES:-}
+      - YT_DLP_PATH=${YT_DLP_PATH:-yt-dlp}
+    restart: no
