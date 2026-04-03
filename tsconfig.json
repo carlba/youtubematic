@@ -1,14 +1,15 @@
 {
   "extends": "@tsconfig/node24/tsconfig.json",
   "compilerOptions": {
-
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./src",
     "resolveJsonModule": true,
     "moduleResolution": "nodenext",
     "verbatimModuleSyntax": true, // Enforces .js for modules
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node"]
   },
   "include": ["src"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "vitest.config.ts"]
 }
