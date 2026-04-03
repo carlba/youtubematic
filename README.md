@@ -1,86 +1,96 @@
-# typescript-template
+# youtubematic
 
-A template for a Typescript repository
+A TypeScript script that automatically downloads YouTube subscriptions to a configurable path on disk using [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
-## ESLint Setup
+## Features
 
-```javascript
-module.exports = {
-  env: {
-    es2022: true,
-    node: true,
-  },
-  overrides: [
-    {
-      files: ['**/*.js'],
-      extends: ['eslint:recommended'],
-      // https://eslint.org/docs/v8.x/use/configure/language-options#specifying-parser-options
-      parserOptions: {
-        ecmaVersion: '2022',
-      },
-    },
-    {
-      files: ['src**/*.ts'],
-      extends: [
-        'eslint:recommended',
-        'plugin:@typescript-eslint/recommended-type-checked',
-        'plugin:@typescript-eslint/stylistic-type-checked',
-      ],
-      plugins: ['@typescript-eslint'],
-      parser: '@typescript-eslint/parser',
-      parserOptions: {
-        project: true,
-      },
-    },
-  ],
-};
+- Downloads videos from one or more YouTube channels
+- Configurable download path
+- Optionally limit downloads to the latest N episodes per channel
+- Fully dockerized
+- All settings configurable via environment variables
+
+## Configuration
+
+Copy `.env.example` to `.env` and edit the values:
+
+```bash
+cp .env.example .env
 ```
 
-The newest version of ESLint is using the new `flatconfig` format. Even though it looks cool sadly
+| Variable | Description | Default |
+|---|---|---|
+| `DOWNLOAD_PATH` | Path where downloaded videos are stored | `/mnt/downloads` |
+| `CHANNELS` | Comma or newline-separated list of YouTube channel URLs | _(required)_ |
+| `MAX_EPISODES` | Maximum number of latest episodes to download per channel | _(no limit)_ |
+| `YT_DLP_PATH` | Path to the `yt-dlp` binary | `yt-dlp` |
 
-the adaptation of it in the community has not yet reached to the point where it makes sense to start
+### Example `.env`
 
-using it. That is why this repo uses the `8.57.0` version which still defaults to the old config
+```env
+DOWNLOAD_PATH=/mnt/downloads
+CHANNELS=https://www.youtube.com/@SomeChannel,https://www.youtube.com/@AnotherChannel
+MAX_EPISODES=10
+```
 
-file format. It has some consequences.
+## Running with Docker Compose
 
-1. The file has to be in CommonJS format since version `8.57.0` doesn't support anything else
-2. The support both JS and Typescript by using the overrides property.
-3. Note that the `module.exports.overrides[0].parserOptions` needs to have a higher ECMA version
+```bash
+docker compose up
+```
 
-   specified as the default is `ES5`. For the Typescript configuration this is not needed as it
+Downloads are organized under `DOWNLOAD_PATH` in subdirectories per channel uploader:
 
-   reads the settings from the `tsconfig` when `module.exports.overrides[1].parserOptions.project`
+```
+/mnt/downloads/
+  ChannelName/
+    Video Title.mp4
+    Another Video.mp4
+  AnotherChannel/
+    Episode.mp4
+```
 
-   is set to `true`
+## Running locally
 
-## Why is nodemon Used Over tsx watch
+### Prerequisites
 
-Because `tsx watch` does not support watching .env file.
+- Node.js (see `.nvmrc` for version)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) installed and available in `PATH`
+- [ffmpeg](https://ffmpeg.org/) installed
 
-## Migration from Jest to Vitest
+### Install dependencies
 
-1. Uninstall Jest
+```bash
+npm install
+```
 
-   ```bash
-   npm uninstall jest @types/jest
-   npm install -D vitest
-   ```
+### Build
 
-1. Configure Vitest
+```bash
+npm run build
+```
 
-   [vitest config in the repo](vitest.config.ts)
+### Run
 
-1. Update package.json with test commands referencing `vitest` rather than `jest`
+```bash
+CHANNELS="https://www.youtube.com/@SomeChannel" MAX_EPISODES=5 npm start
+```
 
-   ```json
-   {
-     "scripts": {
-       "test": "vitest run",
-       "test:watch": "vitest watch",
-       "test:coverage": "vitest run --coverage"
-     }
-   }
-   ```
+### Development
 
-1. And ensure to add `import { describe, it, expect } from 'vitest';` at the top of test cases.
+```bash
+npm run start:dev
+```
+
+## Testing
+
+```bash
+npm test
+```
+
+## Linting
+
+```bash
+npm run lint
+```
+
