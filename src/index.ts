@@ -19,24 +19,20 @@ export function getConfig(): Config {
     .filter(c => c.length > 0);
   const maxEpisodesEnv = process.env['MAX_EPISODES'];
   const maxEpisodes =
-    maxEpisodesEnv !== undefined && maxEpisodesEnv !== ''
-      ? parseInt(maxEpisodesEnv, 10)
-      : null;
+    maxEpisodesEnv !== undefined && maxEpisodesEnv !== '' ? parseInt(maxEpisodesEnv, 10) : null;
   const ytDlpPath = process.env['YT_DLP_PATH'] ?? 'yt-dlp';
 
   return { downloadPath, channels, maxEpisodes, ytDlpPath };
 }
 
 export function buildYtDlpArgs(channel: string, config: Config): string[] {
-  const outputTemplate = join(
-    config.downloadPath,
-    '%(uploader)s',
-    '%(title)s.%(ext)s'
-  );
+  const outputTemplate = join(config.downloadPath, '%(uploader)s', '%(title)s.%(ext)s');
 
   const args: string[] = [
     '--output',
     outputTemplate,
+    '--js-runtimes',
+    'node',
     '--format',
     'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
     '--merge-output-format',
@@ -52,10 +48,7 @@ export function buildYtDlpArgs(channel: string, config: Config): string[] {
   return args;
 }
 
-export function downloadChannel(
-  channel: string,
-  config: Config
-): Promise<void> {
+export function downloadChannel(channel: string, config: Config): Promise<void> {
   return new Promise((resolve, reject) => {
     const args = buildYtDlpArgs(channel, config);
 
@@ -80,9 +73,7 @@ async function main(): Promise<void> {
   const config = getConfig();
 
   if (config.channels.length === 0) {
-    console.error(
-      'No channels configured. Set the CHANNELS environment variable.'
-    );
+    console.error('No channels configured. Set the CHANNELS environment variable.');
     process.exit(1);
   }
 

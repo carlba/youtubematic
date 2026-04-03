@@ -46,8 +46,7 @@ describe('getConfig', () => {
   });
 
   it('should parse comma-separated CHANNELS', () => {
-    process.env['CHANNELS'] =
-      'https://www.youtube.com/@channel1,https://www.youtube.com/@channel2';
+    process.env['CHANNELS'] = 'https://www.youtube.com/@channel1,https://www.youtube.com/@channel2';
 
     const config = getConfig();
 
@@ -127,9 +126,7 @@ describe('buildYtDlpArgs', () => {
     const outputIndex = args.indexOf('--output');
 
     expect(outputIndex).toBeGreaterThan(-1);
-    expect(args[outputIndex + 1]).toBe(
-      join('/mnt/downloads', '%(uploader)s', '%(title)s.%(ext)s')
-    );
+    expect(args[outputIndex + 1]).toBe(join('/mnt/downloads', '%(uploader)s', '%(title)s.%(ext)s'));
   });
 
   it('should include --playlist-end when maxEpisodes is set', () => {
@@ -156,6 +153,15 @@ describe('buildYtDlpArgs', () => {
     expect(args).toContain('--format');
     expect(args).toContain('--merge-output-format');
     expect(args).toContain('mp4');
+  });
+
+  it('should include a JavaScript runtime for yt-dlp extraction', () => {
+    const channel = 'https://www.youtube.com/@testchannel';
+    const args = buildYtDlpArgs(channel, baseConfig);
+    const jsRuntimeIndex = args.indexOf('--js-runtimes');
+
+    expect(jsRuntimeIndex).toBeGreaterThan(-1);
+    expect(args[jsRuntimeIndex + 1]).toBe('node');
   });
 });
 
