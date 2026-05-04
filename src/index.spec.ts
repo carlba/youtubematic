@@ -12,6 +12,16 @@ vi.mock('node:child_process', () => ({
 import { spawn } from 'node:child_process';
 const mockSpawn = vi.mocked(spawn);
 
+const TEST_CHANNEL = 'https://www.youtube.com/@testchannel';
+
+const baseConfig: Config = {
+  downloadPath: '/mnt/downloads',
+  channels: [],
+  maxEpisodes: null,
+  maxAgeDays: null,
+  ytDlpPath: 'yt-dlp',
+};
+
 describe('getConfig', () => {
   const originalEnv = process.env;
 
@@ -124,24 +134,14 @@ describe('getConfig', () => {
 });
 
 describe('buildYtDlpArgs', () => {
-  const baseConfig: Config = {
-    downloadPath: '/mnt/downloads',
-    channels: [],
-    maxEpisodes: null,
-    maxAgeDays: null,
-    ytDlpPath: 'yt-dlp',
-  };
-
   it('should include the channel URL as the last argument', () => {
-    const channel = 'https://www.youtube.com/@testchannel';
-    const args = buildYtDlpArgs(channel, baseConfig);
+    const args = buildYtDlpArgs(TEST_CHANNEL, baseConfig);
 
-    expect(args[args.length - 1]).toBe(channel);
+    expect(args[args.length - 1]).toBe(TEST_CHANNEL);
   });
 
   it('should include the correct output template', () => {
-    const channel = 'https://www.youtube.com/@testchannel';
-    const args = buildYtDlpArgs(channel, baseConfig);
+    const args = buildYtDlpArgs(TEST_CHANNEL, baseConfig);
     const outputIndex = args.indexOf('--output');
 
     expect(outputIndex).toBeGreaterThan(-1);
@@ -150,8 +150,7 @@ describe('buildYtDlpArgs', () => {
 
   it('should include --playlist-end when maxEpisodes is set', () => {
     const config: Config = { ...baseConfig, maxEpisodes: 10 };
-    const channel = 'https://www.youtube.com/@testchannel';
-    const args = buildYtDlpArgs(channel, config);
+    const args = buildYtDlpArgs(TEST_CHANNEL, config);
     const playlistEndIndex = args.indexOf('--playlist-end');
 
     expect(playlistEndIndex).toBeGreaterThan(-1);
@@ -159,15 +158,13 @@ describe('buildYtDlpArgs', () => {
   });
 
   it('should not include --playlist-end when maxEpisodes is null', () => {
-    const channel = 'https://www.youtube.com/@testchannel';
-    const args = buildYtDlpArgs(channel, baseConfig);
+    const args = buildYtDlpArgs(TEST_CHANNEL, baseConfig);
 
     expect(args).not.toContain('--playlist-end');
   });
 
   it('should include format options', () => {
-    const channel = 'https://www.youtube.com/@testchannel';
-    const args = buildYtDlpArgs(channel, baseConfig);
+    const args = buildYtDlpArgs(TEST_CHANNEL, baseConfig);
 
     expect(args).toContain('--format');
     expect(args).toContain('--merge-output-format');
@@ -175,8 +172,7 @@ describe('buildYtDlpArgs', () => {
   });
 
   it('should include a JavaScript runtime for yt-dlp extraction', () => {
-    const channel = 'https://www.youtube.com/@testchannel';
-    const args = buildYtDlpArgs(channel, baseConfig);
+    const args = buildYtDlpArgs(TEST_CHANNEL, baseConfig);
     const jsRuntimeIndex = args.indexOf('--js-runtimes');
 
     expect(jsRuntimeIndex).toBeGreaterThan(-1);
@@ -185,40 +181,21 @@ describe('buildYtDlpArgs', () => {
 
   it('should include --dateafter when maxAgeDays is set', () => {
     const config: Config = { ...baseConfig, maxAgeDays: 7 };
-    const channel = 'https://www.youtube.com/@testchannel';
-    const args = buildYtDlpArgs(channel, config);
+    const args = buildYtDlpArgs(TEST_CHANNEL, config);
     const dateAfterIndex = args.indexOf('--dateafter');
-    const expectedDate = new Date();
-
-    expectedDate.setDate(expectedDate.getDate() - 7);
-
-    const expectedValue = [
-      expectedDate.getFullYear().toString(),
-      String(expectedDate.getMonth() + 1).padStart(2, '0'),
-      String(expectedDate.getDate()).padStart(2, '0'),
-    ].join('');
 
     expect(dateAfterIndex).toBeGreaterThan(-1);
-    expect(args[dateAfterIndex + 1]).toBe(expectedValue);
+    expect(args[dateAfterIndex + 1]).toBe('today-7day');
   });
 
   it('should not include --dateafter when maxAgeDays is null', () => {
-    const channel = 'https://www.youtube.com/@testchannel';
-    const args = buildYtDlpArgs(channel, baseConfig);
+    const args = buildYtDlpArgs(TEST_CHANNEL, baseConfig);
 
     expect(args).not.toContain('--dateafter');
   });
 });
 
 describe('downloadChannel', () => {
-  const baseConfig: Config = {
-    downloadPath: '/mnt/downloads',
-    channels: [],
-    maxEpisodes: null,
-    maxAgeDays: null,
-    ytDlpPath: 'yt-dlp',
-  };
-
   function makeFakeChild(exitCode: number | null = 0): EventEmitter {
     const child = new EventEmitter();
     setTimeout(() => child.emit('close', exitCode), 0);
@@ -228,17 +205,15 @@ describe('downloadChannel', () => {
   it('should resolve when yt-dlp exits with code 0', async () => {
     mockSpawn.mockReturnValueOnce(makeFakeChild(0) as ReturnType<typeof spawn>);
 
-    await expect(
-      downloadChannel('https://www.youtube.com/@testchannel', baseConfig)
-    ).resolves.toBeUndefined();
+    await expect(downloadChannel(TEST_CHANNEL, baseConfig)).resolves.toBeUndefined();
   });
 
   it('should reject when yt-dlp exits with a non-zero code', async () => {
     mockSpawn.mockReturnValueOnce(makeFakeChild(1) as ReturnType<typeof spawn>);
 
-    await expect(
-      downloadChannel('https://www.youtube.com/@testchannel', baseConfig)
-    ).rejects.toThrow('yt-dlp exited with code 1');
+    await expect(downloadChannel(TEST_CHANNEL, baseConfig)).rejects.toThrow(
+      'yt-dlp exited with code 1'
+    );
   });
 
   it('should reject when spawn emits an error', async () => {
@@ -246,20 +221,17 @@ describe('downloadChannel', () => {
     setTimeout(() => child.emit('error', new Error('spawn ENOENT')), 0);
     mockSpawn.mockReturnValueOnce(child as ReturnType<typeof spawn>);
 
-    await expect(
-      downloadChannel('https://www.youtube.com/@testchannel', baseConfig)
-    ).rejects.toThrow('spawn ENOENT');
+    await expect(downloadChannel(TEST_CHANNEL, baseConfig)).rejects.toThrow('spawn ENOENT');
   });
 
   it('should call spawn with the correct yt-dlp path and channel args', async () => {
     mockSpawn.mockReturnValueOnce(makeFakeChild(0) as ReturnType<typeof spawn>);
 
-    const channel = 'https://www.youtube.com/@testchannel';
-    await downloadChannel(channel, baseConfig);
+    await downloadChannel(TEST_CHANNEL, baseConfig);
 
     expect(mockSpawn).toHaveBeenCalledWith(
       'yt-dlp',
-      expect.arrayContaining([channel]),
+      expect.arrayContaining([TEST_CHANNEL]),
       expect.any(Object)
     );
   });

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -11,30 +12,18 @@ export interface Config {
   ytDlpPath: string;
 }
 
-function formatDateDaysAgo(daysAgo: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() - daysAgo);
-
-  const year = date.getFullYear().toString();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}${month}${day}`;
+function parseOptionalInt(value: string | undefined): number | null {
+  return value !== undefined && value !== '' ? parseInt(value, 10) : null;
 }
 
 export function getConfig(): Config {
   const downloadPath = process.env['DOWNLOAD_PATH'] ?? '/mnt/downloads';
-  const channelsEnv = process.env['CHANNELS'] ?? '';
-  const channels = channelsEnv
+  const channels = (process.env['CHANNELS'] ?? '')
     .split(/[\n,]/)
     .map(c => c.trim())
     .filter(c => c.length > 0);
-  const maxEpisodesEnv = process.env['MAX_EPISODES'];
-  const maxEpisodes =
-    maxEpisodesEnv !== undefined && maxEpisodesEnv !== '' ? parseInt(maxEpisodesEnv, 10) : null;
-  const maxAgeDaysEnv = process.env['MAX_AGE_DAYS'];
-  const maxAgeDays =
-    maxAgeDaysEnv !== undefined && maxAgeDaysEnv !== '' ? parseInt(maxAgeDaysEnv, 10) : null;
+  const maxEpisodes = parseOptionalInt(process.env['MAX_EPISODES']);
+  const maxAgeDays = parseOptionalInt(process.env['MAX_AGE_DAYS']);
   const ytDlpPath = process.env['YT_DLP_PATH'] ?? 'yt-dlp';
 
   const config = { downloadPath, channels, maxEpisodes, maxAgeDays, ytDlpPath };
@@ -63,7 +52,7 @@ export function buildYtDlpArgs(channel: string, config: Config): string[] {
   }
 
   if (config.maxAgeDays !== null) {
-    args.push('--dateafter', formatDateDaysAgo(config.maxAgeDays));
+    args.push('--dateafter', `today-${config.maxAgeDays}day`);
   }
 
   args.push(channel);
@@ -71,25 +60,16 @@ export function buildYtDlpArgs(channel: string, config: Config): string[] {
   return args;
 }
 
-export function downloadChannel(channel: string, config: Config): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const args = buildYtDlpArgs(channel, config);
+export async function downloadChannel(channel: string, config: Config): Promise<void> {
+  const args = buildYtDlpArgs(channel, config);
 
-    console.log(`Downloading from: ${channel}`);
-    const child = spawn(config.ytDlpPath, args, { stdio: 'inherit' });
+  console.log(`Downloading from: ${channel}`);
+  const child = spawn(config.ytDlpPath, args, { stdio: 'inherit' });
+  const [code] = await once(child, 'close');
 
-    child.on('close', code => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`yt-dlp exited with code ${String(code)}`));
-      }
-    });
-
-    child.on('error', err => {
-      reject(err);
-    });
-  });
+  if (code !== 0) {
+    throw new Error(`yt-dlp exited with code ${String(code)}`);
+  }
 }
 
 async function main(): Promise<void> {
