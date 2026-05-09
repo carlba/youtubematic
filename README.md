@@ -26,6 +26,7 @@ cp .env.example .env
 | `MAX_EPISODES` | Maximum number of latest episodes to download per channel | _(no limit)_ |
 | `MAX_AGE_DAYS` | Only download entries uploaded within the last N days | _(no limit)_ |
 | `YT_DLP_PATH` | Path to the `yt-dlp` binary | `yt-dlp` |
+| `CRON_PATTERN` | CRON schedule for repeated runs | _(run once and exit)_ |
 
 ### Example `.env`
 
@@ -34,6 +35,7 @@ DOWNLOAD_PATH=/mnt/downloads
 CHANNELS=https://www.youtube.com/@SomeChannel,https://www.youtube.com/@AnotherChannel
 MAX_EPISODES=10
 MAX_AGE_DAYS=30
+CRON_PATTERN=0 * * * *
 ```
 
 ## Running with Docker Compose

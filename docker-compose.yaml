@@ -6,8 +6,9 @@ services:
       - ./downloads:/mnt/downloads
     environment:
       - DOWNLOAD_PATH=/mnt/downloads
-      - CHANNELS=https://www.youtube.com/@LowkoTV
-      - MAX_EPISODES=2
+      - CHANNELS=https://www.youtube.com/@LowkoTV/videos
+      - MAX_EPISODES=5
       - MAX_AGE_DAYS=${MAX_AGE_DAYS:-}
       - YT_DLP_PATH=${YT_DLP_PATH:-yt-dlp}
+      - CRON_PATTERN=0 * * * *
     restart: no

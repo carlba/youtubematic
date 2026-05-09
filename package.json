@@ -26,6 +26,9 @@
     "format:check": "prettier --check .",
     "dependency:update": "npx ncu -u -x eslint"
   },
+  "dependencies": {
+    "croner": "^3.0.0"
+  },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.3",
     "@types/node": "^25.0.3",

@@ -20,6 +20,8 @@ const baseConfig: Config = {
   maxEpisodes: null,
   maxAgeDays: null,
   ytDlpPath: 'yt-dlp',
+  cronPattern: null,
+  matchFilter: 'original_url!*=/shorts/ & url!*=/shorts/',
 };
 
 describe('getConfig', () => {
@@ -130,6 +132,22 @@ describe('getConfig', () => {
     const config = getConfig();
 
     expect(config.ytDlpPath).toBe('/usr/local/bin/yt-dlp');
+  });
+
+  it('should return null for CRON_PATTERN when not set', () => {
+    delete process.env['CRON_PATTERN'];
+
+    const config = getConfig();
+
+    expect(config.cronPattern).toBeNull();
+  });
+
+  it('should read CRON_PATTERN from environment', () => {
+    process.env['CRON_PATTERN'] = '0 * * * *';
+
+    const config = getConfig();
+
+    expect(config.cronPattern).toBe('0 * * * *');
   });
 });
 
