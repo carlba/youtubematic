@@ -163,12 +163,17 @@ describe('buildYtDlpArgs', () => {
     expect(args).not.toContain('--playlist-end');
   });
 
-  it('should include format options', () => {
+  it('should include format options and metadata flags', () => {
     const args = buildYtDlpArgs(TEST_CHANNEL, baseConfig);
 
     expect(args).toContain('--format');
+    expect(args).toContain(
+      'bestvideo[ext=mp4][vcodec*=avc1]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]'
+    );
     expect(args).toContain('--merge-output-format');
     expect(args).toContain('mp4');
+    expect(args).toContain('--embed-chapters');
+    expect(args).toContain('--add-metadata');
   });
 
   it('should include a JavaScript runtime for yt-dlp extraction', () => {

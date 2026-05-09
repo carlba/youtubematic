@@ -42,9 +42,11 @@ export function buildYtDlpArgs(channel: string, config: Config): string[] {
     '--js-runtimes',
     'node',
     '--format',
-    'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+    'bestvideo[ext=mp4][vcodec*=avc1]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
     '--merge-output-format',
     'mp4',
+    '--embed-chapters',
+    '--add-metadata',
   ];
 
   if (config.maxEpisodes !== null) {
