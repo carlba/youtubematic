@@ -163,7 +163,7 @@ describe('buildYtDlpArgs', () => {
     expect(args).not.toContain('--playlist-end');
   });
 
-  it('should include format options and metadata flags', () => {
+  it('should include format options, metadata flags, and download archive', () => {
     const args = buildYtDlpArgs(TEST_CHANNEL, baseConfig);
 
     expect(args).toContain('--format');

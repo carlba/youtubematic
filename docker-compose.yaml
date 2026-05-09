@@ -1,6 +1,7 @@
 services:
   youtubematic:
     build: .
+    user: "${UID:-501}:${GID:-20}"
     volumes:
       - ./downloads:/mnt/downloads
     environment:
