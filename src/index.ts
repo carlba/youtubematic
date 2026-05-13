@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Cron } from 'croner';
+import { refreshPlex } from './plex.js';
 
 export interface Config {
   downloadPath: string;
@@ -124,12 +125,22 @@ export async function downloadChannel(channel: string, config: Config): Promise<
 
 export async function runOnce(config: Config): Promise<void> {
   mkdirSync(config.downloadPath, { recursive: true });
+  let downloadSucceeded = false;
 
   for (const channel of config.channels) {
     try {
       await downloadChannel(channel, config);
+      downloadSucceeded = true;
     } catch (error) {
       console.error(`Failed to download from ${channel}:`, error);
+    }
+  }
+
+  if (downloadSucceeded) {
+    try {
+      await refreshPlex(config.downloadPath);
+    } catch (error) {
+      console.error('Plex refresh failed:', error);
     }
   }
 }

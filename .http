@@ -1,0 +1,23 @@
+@plex_token = {{$dotenv PLEX_TOKEN}}
+@plex_url = {{$dotenv PLEX_URL}}
+@plex_section_id = {{$dotenv PLEX_SECTION_ID}}
+
+GET {{plex_url}}/library/sections?X-Plex-Token={{plex_token}}
+
+###
+
+GET {{plex_url}}/library/sections/{{plex_section_id}}/refresh?X-Plex-Token={{plex_token}}
+
+###
+@pushover_token= {{$dotenv PUSHOVER_TOKEN}}
+@pushover_user= {{$dotenv PUSHOVER_USER}}
+
+POST https://api.pushover.net/1/messages.json HTTP/1.1
+content-type: application/json
+
+{
+  "user": "{{pushover_user}}",
+  "token": "{{pushover_token}}",
+  "title": "test",
+  "message": "testing"
+}
