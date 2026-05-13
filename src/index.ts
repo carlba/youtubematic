@@ -6,51 +6,8 @@ import { pathToFileURL } from 'node:url';
 import { Cron } from 'croner';
 import { refreshPlex } from './plex.js';
 import fs from 'node:fs/promises';
-
-export interface Config {
-  downloadPath: string;
-  channels: string[];
-  maxEpisodes: number | null;
-  maxAgeDays: number | null;
-  ytDlpPath: string;
-  cronPattern: string | null;
-  matchFilter: string | null;
-}
-
-function parseOptionalInt(value: string | undefined): number | null {
-  return value !== undefined && value !== '' ? parseInt(value, 10) : null;
-}
-
-function parseOptionalString(value: string | undefined): string | null {
-  return value !== undefined && value !== '' ? value : null;
-}
-
-export function getConfig(): Config {
-  const downloadPath = process.env['DOWNLOAD_PATH'] ?? '/mnt/downloads';
-  const channels = (process.env['CHANNELS'] ?? '')
-    .split(/[\n,]/)
-    .map(c => c.trim())
-    .filter(c => c.length > 0);
-  const maxEpisodes = parseOptionalInt(process.env['MAX_EPISODES']);
-  const maxAgeDays = parseOptionalInt(process.env['MAX_AGE_DAYS']);
-  const ytDlpPath = process.env['YT_DLP_PATH'] ?? 'yt-dlp';
-  const cronPattern = parseOptionalString(process.env['CRON_PATTERN']);
-  const matchFilter = parseOptionalString(process.env['MATCH_FILTER']);
-
-  const config = {
-    downloadPath,
-    channels,
-    maxEpisodes,
-    maxAgeDays,
-    ytDlpPath,
-    cronPattern,
-    matchFilter,
-  };
-
-  console.log('CONFIG', config);
-
-  return config;
-}
+import { getConfig, type Config } from './lib/config.js';
+import { envSchema } from './schema.js';
 
 let currentChild: ChildProcess | null = null;
 
@@ -153,7 +110,7 @@ export async function downloadChannel(channel: string, config: Config): Promise<
       throw error;
     });
 
-    const [code] = await Promise.race([closePromise, errorPromise]);
+    const [code] = (await Promise.race([closePromise, errorPromise])) as [number, NodeJS.Signals];
 
     if (code !== 0) {
       throw new Error(`yt-dlp exited with code ${String(code)}`);
@@ -163,7 +120,7 @@ export async function downloadChannel(channel: string, config: Config): Promise<
     const downloadedFiles = afterFiles.filter(file => !beforeFiles.has(file));
 
     return {
-      code: code as number,
+      code,
       downloadedFiles,
     };
   } finally {
@@ -191,16 +148,14 @@ export async function runOnce(config: Config): Promise<void> {
 
   if (hasNewFiles) {
     try {
-      await refreshPlex(config.downloadPath);
+      await refreshPlex(config.downloadPath, config);
     } catch (error) {
       console.error('Plex refresh failed:', error);
     }
   }
 }
 
-async function main(): Promise<void> {
-  const config = getConfig();
-
+async function run(config: Config): Promise<void> {
   if (config.channels.length === 0) {
     console.error('No channels configured. Set the CHANNELS environment variable.');
     process.exit(1);
@@ -208,25 +163,25 @@ async function main(): Promise<void> {
 
   if (config.cronPattern) {
     console.log(`Scheduling downloads using CRON pattern: ${config.cronPattern}`);
-
-    new Cron(config.cronPattern, async () => {
+    new Cron(config.cronPattern, () => {
       console.log('Running scheduled download cycle');
-      try {
-        await runOnce(config);
-      } catch (error) {
+      void runOnce(config).catch(error => {
         console.error('Scheduled download cycle failed:', error);
-      }
+      });
     });
-
     await runOnce(config);
     console.log('Scheduler initialized, running continuously.');
-  } else {
-    console.log('Download running once due to no CRON pattern configured');
-    await runOnce(config);
+    return;
   }
+
+  console.log('Download running once due to no CRON pattern configured');
+  await runOnce(config);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   setupSignalForwarding();
-  main().catch(console.error);
+  run(getConfig(envSchema)).catch(error => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
 }

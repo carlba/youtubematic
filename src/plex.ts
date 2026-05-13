@@ -1,30 +1,36 @@
-const PLEX_URL = process.env['PLEX_URL'] ?? 'http://plex:32400';
-const PLEX_TOKEN = process.env['PLEX_TOKEN'] ?? '';
-const PLEX_SECTION_ID = process.env['PLEX_SECTION_ID'] ?? '';
-const PUSHOVER_URL = process.env['PUSHOVER_URL'] ?? 'https://api.pushover.net/1/messages.json';
-const PUSHOVER_TOKEN = process.env['PUSHOVER_TOKEN'] ?? '';
-const PUSHOVER_USER = process.env['PUSHOVER_USER'] ?? '';
+import got from 'got';
+import type { Config } from './lib/config.js';
 
-async function fetchStatus(url: string): Promise<number> {
+export const httpClient = got.extend({
+  throwHttpErrors: false,
+  timeout: {
+    request: 10000,
+  },
+  retry: {
+    limit: 2,
+  },
+});
+
+async function fetchStatus(
+  path: string,
+  baseUrl: string,
+  searchParams: Record<string, string>
+): Promise<number> {
   try {
-    const response = await fetch(url, { method: 'GET' });
-    return response.status || 0;
+    const response = await httpClient.get(path, { prefixUrl: baseUrl, searchParams });
+    return response.statusCode ?? 0;
   } catch {
     return 0;
   }
 }
 
-function buildRefreshUrl(sectionId: string, path: string): string {
-  const query = new URLSearchParams({ 'X-Plex-Token': PLEX_TOKEN });
-  if (path) {
-    query.append('path', path);
-  }
-  return `${PLEX_URL}/library/sections/${sectionId}/refresh?${query.toString()}`;
-}
-
-async function refreshSection(sectionId: string, label: string, path: string): Promise<boolean> {
-  const url = buildRefreshUrl(sectionId, path);
-  const status = await fetchStatus(url);
+async function refreshSection(
+  path: string,
+  baseUrl: string,
+  searchParams: Record<string, string>,
+  label: string
+): Promise<boolean> {
+  const status = await fetchStatus(path, baseUrl, searchParams);
 
   console.log(`Plex refresh HTTP status for ${label}: ${status}`);
   if (status === 200 || status === 201 || status === 204) {
@@ -35,51 +41,65 @@ async function refreshSection(sectionId: string, label: string, path: string): P
   return false;
 }
 
-async function notifyPushover(message: string): Promise<void> {
-  if (!PUSHOVER_TOKEN || !PUSHOVER_USER) {
+async function notifyPushover(message: string, config: Config): Promise<void> {
+  if (!config.pushoverToken || !config.pushoverUser) {
     return;
   }
 
-  const form = new URLSearchParams({
-    token: PUSHOVER_TOKEN,
-    user: PUSHOVER_USER,
-    title: 'yt-dlp -> Plex Refresh',
-    message,
-  });
-
   try {
-    const response = await fetch(PUSHOVER_URL, {
-      method: 'POST',
-      body: form,
+    const response = await httpClient.post(config.pushoverUrl, {
+      form: {
+        token: config.pushoverToken,
+        user: config.pushoverUser,
+        title: 'yt-dlp -> Plex Refresh',
+        message,
+      },
     });
 
-    if (response.status === 200) {
+    if (response.statusCode === 200) {
       console.log('Pushover notification sent');
     } else {
-      console.log(`WARNING: Pushover notification failed (${response.status})`);
+      console.log(`WARNING: Pushover notification failed (${response.statusCode})`);
     }
   } catch (error: unknown) {
-    const message =
+    const detail =
       typeof error === 'object' && error !== null && 'message' in error
         ? String(error.message)
         : String(error);
-    console.log(`WARNING: Failed to send Pushover notification (${message})`);
+    console.log(`WARNING: Failed to send Pushover notification (${detail})`);
   }
 }
 
-export async function refreshPlex(downloadPath: string): Promise<boolean> {
-  if (!PLEX_TOKEN) {
+export async function refreshPlex(downloadPath: string, config: Config): Promise<boolean> {
+  if (!config.plexToken) {
     console.log('WARNING: PLEX_TOKEN missing, skipping Plex refresh');
     return false;
   }
 
-  const path = downloadPath || '';
+  if (!config.plexSectionId) {
+    console.log('WARNING: PLEX_SECTION_ID missing, skipping Plex refresh');
+    return false;
+  }
 
-  const success = await refreshSection(PLEX_SECTION_ID, 'Youtube', path);
+  const searchParams: Record<string, string> = {
+    'X-Plex-Token': config.plexToken,
+  };
+
+  if (downloadPath) {
+    searchParams.path = downloadPath;
+  }
+
+  const success = await refreshSection(
+    `library/sections/${config.plexSectionId}/refresh`,
+    config.plexUrl,
+    searchParams,
+    'Youtube'
+  );
 
   if (success) {
     await notifyPushover(
-      `Plex refresh triggered by completed yt-dlp download run (path: ${path || 'n/a'})`
+      `Plex refresh triggered by completed yt-dlp download run (path: ${downloadPath || 'n/a'})`,
+      config
     );
   }
 
