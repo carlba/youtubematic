@@ -16,7 +16,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node --env-file-if-exists='.env' dist/index.js",
     "start:dev": "nodemon -r dotenv/config -q src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest watch",
@@ -27,7 +27,7 @@
     "dependency:update": "npx ncu -u -x eslint"
   },
   "dependencies": {
-    "croner": "^3.0.0"
+    "croner": "^10.0.1"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.3",
