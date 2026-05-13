@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
+import os from 'node:os';
+import fs from 'node:fs/promises';
 
 import { getConfig, buildYtDlpArgs, downloadChannel } from './index.js';
 import type { Config } from './index.js';
@@ -23,6 +25,13 @@ const baseConfig: Config = {
   cronPattern: null,
   matchFilter: 'original_url!*=/shorts/ & url!*=/shorts/',
 };
+
+let tempDownloadPath = '';
+
+async function makeTempDownloadConfig(): Promise<Config> {
+  tempDownloadPath = await fs.mkdtemp(join(os.tmpdir(), 'youtubematic-'));
+  return { ...baseConfig, downloadPath: tempDownloadPath };
+}
 
 describe('getConfig', () => {
   const originalEnv = process.env;
@@ -221,41 +230,72 @@ describe('buildYtDlpArgs', () => {
 describe('downloadChannel', () => {
   function makeFakeChild(exitCode: number | null = 0): EventEmitter {
     const child = new EventEmitter();
-    setTimeout(() => child.emit('close', exitCode), 0);
+    setTimeout(() => child.emit('close', exitCode), 20);
     return child;
   }
 
+  afterEach(async () => {
+    if (tempDownloadPath) {
+      await fs.rm(tempDownloadPath, { recursive: true, force: true });
+      tempDownloadPath = '';
+    }
+  });
+
   it('should resolve when yt-dlp exits with code 0', async () => {
+    const config = await makeTempDownloadConfig();
     mockSpawn.mockReturnValueOnce(makeFakeChild(0) as ReturnType<typeof spawn>);
 
-    await expect(downloadChannel(TEST_CHANNEL, baseConfig)).resolves.toBeUndefined();
+    await expect(downloadChannel(TEST_CHANNEL, config)).resolves.toEqual(
+      expect.objectContaining({ code: 0, downloadedFiles: [] })
+    );
   });
 
   it('should reject when yt-dlp exits with a non-zero code', async () => {
+    const config = await makeTempDownloadConfig();
     mockSpawn.mockReturnValueOnce(makeFakeChild(1) as ReturnType<typeof spawn>);
 
-    await expect(downloadChannel(TEST_CHANNEL, baseConfig)).rejects.toThrow(
+    await expect(downloadChannel(TEST_CHANNEL, config)).rejects.toThrow(
       'yt-dlp exited with code 1'
     );
   });
 
   it('should reject when spawn emits an error', async () => {
+    const config = await makeTempDownloadConfig();
     const child = new EventEmitter();
-    setTimeout(() => child.emit('error', new Error('spawn ENOENT')), 0);
+    setTimeout(() => child.emit('error', new Error('spawn ENOENT')), 20);
     mockSpawn.mockReturnValueOnce(child as ReturnType<typeof spawn>);
 
-    await expect(downloadChannel(TEST_CHANNEL, baseConfig)).rejects.toThrow('spawn ENOENT');
+    await expect(downloadChannel(TEST_CHANNEL, config)).rejects.toThrow('spawn ENOENT');
   });
 
   it('should call spawn with the correct yt-dlp path and channel args', async () => {
+    const config = await makeTempDownloadConfig();
     mockSpawn.mockReturnValueOnce(makeFakeChild(0) as ReturnType<typeof spawn>);
 
-    await downloadChannel(TEST_CHANNEL, baseConfig);
+    await downloadChannel(TEST_CHANNEL, config);
 
     expect(mockSpawn).toHaveBeenCalledWith(
       'yt-dlp',
       expect.arrayContaining([TEST_CHANNEL]),
       expect.any(Object)
+    );
+  });
+
+  it('should detect newly created files after yt-dlp exits', async () => {
+    const config = await makeTempDownloadConfig();
+    const child = makeFakeChild(0);
+    mockSpawn.mockReturnValueOnce(child as ReturnType<typeof spawn>);
+
+    setTimeout(async () => {
+      await fs.mkdir(join(config.downloadPath, 'LowkoTV'), { recursive: true });
+      await fs.writeFile(join(config.downloadPath, 'LowkoTV', 'video.mp4'), 'dummy');
+    }, 10);
+
+    await expect(downloadChannel(TEST_CHANNEL, config)).resolves.toEqual(
+      expect.objectContaining({
+        code: 0,
+        downloadedFiles: [join('LowkoTV', 'video.mp4')],
+      })
     );
   });
 });
