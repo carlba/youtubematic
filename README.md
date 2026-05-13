@@ -26,17 +26,12 @@ cp .env.example .env
 | `MAX_EPISODES` | Maximum number of latest episodes to download per channel | _(no limit)_ |
 | `MAX_AGE_DAYS` | Only download entries uploaded within the last N days | _(no limit)_ |
 | `YT_DLP_PATH` | Path to the `yt-dlp` binary | `yt-dlp` |
+| `PLEX_URL` | Plex base URL for refresh requests | `http://plex:32400` |
+| `PLEX_TOKEN` | Plex access token | _(required for refresh)_ |
+| `PLEX_SECTION_ID` | Plex library section ID to refresh | _(required for refresh)_ |
+| `PUSHOVER_TOKEN` | Pushover API token | _(optional)_ |
+| `PUSHOVER_USER` | Pushover user key | _(optional)_ |
 | `CRON_PATTERN` | CRON schedule for repeated runs | _(run once and exit)_ |
-
-### Example `.env`
-
-```env
-DOWNLOAD_PATH=/mnt/downloads
-CHANNELS=https://www.youtube.com/@SomeChannel,https://www.youtube.com/@AnotherChannel
-MAX_EPISODES=10
-MAX_AGE_DAYS=30
-CRON_PATTERN=0 * * * *
-```
 
 ## Running with Docker Compose
 
@@ -63,16 +58,10 @@ Downloads are organized under `DOWNLOAD_PATH` in subdirectories per channel uplo
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) installed and available in `PATH`
 - [ffmpeg](https://ffmpeg.org/) installed
 
-### Install dependencies
+### Install and Build
 
 ```bash
-npm install
-```
-
-### Build
-
-```bash
-npm run build
+npm install && npm run build
 ```
 
 ### Run
@@ -86,16 +75,3 @@ CHANNELS="https://www.youtube.com/@SomeChannel" MAX_EPISODES=5 MAX_AGE_DAYS=30 n
 ```bash
 npm run start:dev
 ```
-
-## Testing
-
-```bash
-npm test
-```
-
-## Linting
-
-```bash
-npm run lint
-```
-
