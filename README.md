@@ -1,6 +1,6 @@
 # youtubematic
 
-A TypeScript script that automatically downloads YouTube subscriptions to a configurable path on disk using [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+A TypeScript utility that automatically downloads YouTube subscriptions to a configurable path on disk using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and refreshes Plex libraries automatically.
 
 ## Features
 

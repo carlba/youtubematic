@@ -4,8 +4,10 @@ import { EventEmitter } from 'node:events';
 import os from 'node:os';
 import fs from 'node:fs/promises';
 
-import { getConfig, buildYtDlpArgs, downloadChannel } from './index.js';
-import type { Config } from './index.js';
+import { getConfig } from './lib/config.js';
+import { envSchema } from './schema.js';
+import { buildYtDlpArgs, downloadChannel } from './index.js';
+import type { Config } from './lib/config.js';
 
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
@@ -24,6 +26,12 @@ const baseConfig: Config = {
   ytDlpPath: 'yt-dlp',
   cronPattern: null,
   matchFilter: 'original_url!*=/shorts/ & url!*=/shorts/',
+  plexUrl: 'http://plex:32400',
+  plexToken: null,
+  plexSectionId: null,
+  pushoverUrl: 'https://api.pushover.net/1/messages.json',
+  pushoverToken: null,
+  pushoverUser: null,
 };
 
 let tempDownloadPath = '';
@@ -45,13 +53,13 @@ describe('getConfig', () => {
   });
 
   it('should return default values when no environment variables are set', () => {
-    delete process.env['DOWNLOAD_PATH'];
-    delete process.env['CHANNELS'];
-    delete process.env['MAX_EPISODES'];
-    delete process.env['MAX_AGE_DAYS'];
-    delete process.env['YT_DLP_PATH'];
+    delete process.env.DOWNLOAD_PATH;
+    delete process.env.CHANNELS;
+    delete process.env.MAX_EPISODES;
+    delete process.env.MAX_AGE_DAYS;
+    delete process.env.YT_DLP_PATH;
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.downloadPath).toBe('/mnt/downloads');
     expect(config.channels).toEqual([]);
@@ -61,17 +69,17 @@ describe('getConfig', () => {
   });
 
   it('should read DOWNLOAD_PATH from environment', () => {
-    process.env['DOWNLOAD_PATH'] = '/custom/path';
+    process.env.DOWNLOAD_PATH = '/custom/path';
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.downloadPath).toBe('/custom/path');
   });
 
   it('should parse comma-separated CHANNELS', () => {
-    process.env['CHANNELS'] = 'https://www.youtube.com/@channel1,https://www.youtube.com/@channel2';
+    process.env.CHANNELS = 'https://www.youtube.com/@channel1,https://www.youtube.com/@channel2';
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.channels).toEqual([
       'https://www.youtube.com/@channel1',
@@ -80,10 +88,9 @@ describe('getConfig', () => {
   });
 
   it('should parse newline-separated CHANNELS', () => {
-    process.env['CHANNELS'] =
-      'https://www.youtube.com/@channel1\nhttps://www.youtube.com/@channel2';
+    process.env.CHANNELS = 'https://www.youtube.com/@channel1\nhttps://www.youtube.com/@channel2';
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.channels).toEqual([
       'https://www.youtube.com/@channel1',
@@ -92,10 +99,10 @@ describe('getConfig', () => {
   });
 
   it('should trim whitespace from channel entries', () => {
-    process.env['CHANNELS'] =
+    process.env.CHANNELS =
       ' https://www.youtube.com/@channel1 , https://www.youtube.com/@channel2 ';
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.channels).toEqual([
       'https://www.youtube.com/@channel1',
@@ -104,57 +111,57 @@ describe('getConfig', () => {
   });
 
   it('should parse MAX_EPISODES as a number', () => {
-    process.env['MAX_EPISODES'] = '5';
+    process.env.MAX_EPISODES = '5';
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.maxEpisodes).toBe(5);
   });
 
   it('should return null for MAX_EPISODES when not set', () => {
-    delete process.env['MAX_EPISODES'];
+    delete process.env.MAX_EPISODES;
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.maxEpisodes).toBeNull();
   });
 
   it('should parse MAX_AGE_DAYS as a number', () => {
-    process.env['MAX_AGE_DAYS'] = '30';
+    process.env.MAX_AGE_DAYS = '30';
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.maxAgeDays).toBe(30);
   });
 
   it('should return null for MAX_AGE_DAYS when not set', () => {
-    delete process.env['MAX_AGE_DAYS'];
+    delete process.env.MAX_AGE_DAYS;
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.maxAgeDays).toBeNull();
   });
 
   it('should read YT_DLP_PATH from environment', () => {
-    process.env['YT_DLP_PATH'] = '/usr/local/bin/yt-dlp';
+    process.env.YT_DLP_PATH = '/usr/local/bin/yt-dlp';
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.ytDlpPath).toBe('/usr/local/bin/yt-dlp');
   });
 
   it('should return null for CRON_PATTERN when not set', () => {
-    delete process.env['CRON_PATTERN'];
+    delete process.env.CRON_PATTERN;
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.cronPattern).toBeNull();
   });
 
   it('should read CRON_PATTERN from environment', () => {
-    process.env['CRON_PATTERN'] = '0 * * * *';
+    process.env.CRON_PATTERN = '0 * * * *';
 
-    const config = getConfig();
+    const config = getConfig(envSchema);
 
     expect(config.cronPattern).toBe('0 * * * *');
   });
@@ -286,9 +293,11 @@ describe('downloadChannel', () => {
     const child = makeFakeChild(0);
     mockSpawn.mockReturnValueOnce(child as ReturnType<typeof spawn>);
 
-    setTimeout(async () => {
-      await fs.mkdir(join(config.downloadPath, 'LowkoTV'), { recursive: true });
-      await fs.writeFile(join(config.downloadPath, 'LowkoTV', 'video.mp4'), 'dummy');
+    setTimeout(() => {
+      void (async () => {
+        await fs.mkdir(join(config.downloadPath, 'LowkoTV'), { recursive: true });
+        await fs.writeFile(join(config.downloadPath, 'LowkoTV', 'video.mp4'), 'dummy');
+      })();
     }, 10);
 
     await expect(downloadChannel(TEST_CHANNEL, config)).resolves.toEqual(
