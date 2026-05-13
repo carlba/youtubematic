@@ -1,10 +1,11 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import path, { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Cron } from 'croner';
 import { refreshPlex } from './plex.js';
+import fs from 'node:fs/promises';
 
 export interface Config {
   downloadPath: string;
@@ -71,6 +72,38 @@ function setupSignalForwarding(): void {
   }
 }
 
+export interface DownloadResult {
+  code: number;
+  downloadedFiles: string[];
+}
+
+export async function listFiles(rootPath: string): Promise<string[]> {
+  const results: string[] = [];
+
+  try {
+    const entries = await fs.readdir(rootPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(rootPath, entry.name);
+      if (entry.isDirectory()) {
+        const nested = await listFiles(fullPath);
+        for (const nestedPath of nested) {
+          results.push(path.join(entry.name, nestedPath));
+        }
+      } else if (entry.isFile()) {
+        results.push(entry.name);
+      }
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+
+  return results;
+}
+
 export function buildYtDlpArgs(channel: string, config: Config): string[] {
   const outputTemplate = join(config.downloadPath, '%(uploader)s', '%(title)s.%(ext)s');
 
@@ -86,6 +119,7 @@ export function buildYtDlpArgs(channel: string, config: Config): string[] {
 
     '--embed-chapters',
     '--add-metadata',
+    '--no-overwrites',
   ];
 
   if (config.maxEpisodes !== null) {
@@ -105,19 +139,33 @@ export function buildYtDlpArgs(channel: string, config: Config): string[] {
   return args;
 }
 
-export async function downloadChannel(channel: string, config: Config): Promise<void> {
+export async function downloadChannel(channel: string, config: Config): Promise<DownloadResult> {
   const args = buildYtDlpArgs(channel, config);
 
   console.log(`Downloading from: ${channel}`);
+  const beforeFiles = new Set(await listFiles(config.downloadPath));
   const child = spawn(config.ytDlpPath, args, { stdio: 'inherit' });
   currentChild = child;
 
   try {
-    const [code] = await once(child, 'close');
+    const closePromise = once(child, 'close');
+    const errorPromise = once(child, 'error').then(([error]) => {
+      throw error;
+    });
+
+    const [code] = await Promise.race([closePromise, errorPromise]);
 
     if (code !== 0) {
       throw new Error(`yt-dlp exited with code ${String(code)}`);
     }
+
+    const afterFiles = await listFiles(config.downloadPath);
+    const downloadedFiles = afterFiles.filter(file => !beforeFiles.has(file));
+
+    return {
+      code: code as number,
+      downloadedFiles,
+    };
   } finally {
     currentChild = null;
   }
@@ -125,18 +173,23 @@ export async function downloadChannel(channel: string, config: Config): Promise<
 
 export async function runOnce(config: Config): Promise<void> {
   mkdirSync(config.downloadPath, { recursive: true });
-  let downloadSucceeded = false;
+  let hasNewFiles = false;
 
   for (const channel of config.channels) {
     try {
-      await downloadChannel(channel, config);
-      downloadSucceeded = true;
+      const { downloadedFiles } = await downloadChannel(channel, config);
+      if (downloadedFiles.length > 0) {
+        console.log(`Downloaded ${downloadedFiles.length} new file(s) for ${channel}`);
+        hasNewFiles = true;
+      } else {
+        console.log(`No new downloads for ${channel}`);
+      }
     } catch (error) {
       console.error(`Failed to download from ${channel}:`, error);
     }
   }
 
-  if (downloadSucceeded) {
+  if (hasNewFiles) {
     try {
       await refreshPlex(config.downloadPath);
     } catch (error) {
@@ -168,6 +221,7 @@ async function main(): Promise<void> {
     await runOnce(config);
     console.log('Scheduler initialized, running continuously.');
   } else {
+    console.log('Download running once due to no CRON pattern configured');
     await runOnce(config);
   }
 }
