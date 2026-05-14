@@ -77,6 +77,7 @@ export function buildYtDlpArgs(channel: string, config: Config): string[] {
     '--embed-chapters',
     '--add-metadata',
     '--no-overwrites',
+    '--no-progress',
   ];
 
   if (config.maxEpisodes !== null) {
@@ -148,7 +149,11 @@ export async function runOnce(config: Config): Promise<void> {
 
   if (hasNewFiles) {
     try {
-      await refreshPlex(config.downloadPath, config);
+      await refreshPlex(
+        config.downloadPath,
+        config,
+        `Plex refresh triggered by completed yt-dlp download run (path: ${config.downloadPath || 'n/a'})`
+      );
     } catch (error) {
       console.error('Plex refresh failed:', error);
     }
