@@ -150,9 +150,9 @@ export async function runOnce(config: Config): Promise<void> {
   if (hasNewFiles) {
     try {
       await refreshPlex(
-        config.downloadPath,
+        config.plexBasePath,
         config,
-        `Plex refresh triggered by completed yt-dlp download run (path: ${config.downloadPath || 'n/a'})`
+        `Plex refresh triggered by completed yt-dlp download run (path: ${config.plexBasePath || 'n/a'})`
       );
     } catch (error) {
       console.error('Plex refresh failed:', error);

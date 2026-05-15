@@ -24,6 +24,7 @@ const baseConfig: Config = {
   plexUrl: 'http://localhost:32400',
   plexToken: 'token',
   plexSectionId: '2',
+  plexBasePath: '/streaming/youtube',
   pushoverUrl: 'https://api.pushover.net/1/messages.json',
   pushoverToken: null,
   pushoverUser: null,
