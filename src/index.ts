@@ -166,6 +166,8 @@ async function run(config: Config): Promise<void> {
     process.exit(1);
   }
 
+  console.log({ config }, 'config');
+
   if (config.cronPattern) {
     console.log(`Scheduling downloads using CRON pattern: ${config.cronPattern}`);
     new Cron(config.cronPattern, () => {
