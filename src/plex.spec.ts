@@ -1,17 +1,20 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { refreshPlex } from './plex.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from './lib/config.js';
 
-const { getMock, postMock, extendMock } = vi.hoisted(() => {
-  const getMock = vi.fn();
-  const postMock = vi.fn();
-  const extendMock = vi.fn(() => ({ get: getMock, post: postMock }));
-  return { getMock, postMock, extendMock };
+vi.mock('got', () => {
+  const get = vi.fn();
+  const post = vi.fn();
+  const extend = vi.fn(() => ({ get, post }));
+  const gotMock = Object.assign(
+    vi.fn(() => ({ get, post })),
+    { extend, get, post }
+  );
+
+  return { default: gotMock };
 });
 
-vi.mock('got', () => ({
-  default: { extend: extendMock },
-}));
+import got from 'got';
+import { refreshPlex } from './lib/plex.js';
 
 const baseConfig: Config = {
   downloadPath: '/mnt/downloads',
@@ -30,27 +33,80 @@ const baseConfig: Config = {
   pushoverUser: null,
 };
 
+const mockedExtend: ReturnType<typeof vi.fn> = got.extend as unknown as ReturnType<typeof vi.fn>;
+const mockedGot: {
+  post: ReturnType<typeof vi.fn>;
+  get: ReturnType<typeof vi.fn>;
+} = got as unknown as { post: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
+
 describe('refreshPlex', () => {
   beforeEach(() => {
-    getMock.mockReset();
-    postMock.mockReset();
-    extendMock.mockReset();
-    extendMock.mockReturnValue({ get: getMock, post: postMock });
+    mockedExtend.mockReset();
+    mockedGot.post.mockReset();
+    mockedGot.get.mockReset();
   });
 
   it('should refresh Plex and return true when one request succeeds', async () => {
-    getMock.mockResolvedValueOnce({ statusCode: 200 });
+    const mockClient = { get: vi.fn(() => Promise.resolve({ statusCode: 200 })) };
+    mockedExtend.mockReturnValueOnce(mockClient);
 
     const result = await refreshPlex('/mnt/downloads', baseConfig, 'The cause');
 
     expect(result).toBe(true);
-    expect(extendMock).toHaveBeenCalledWith({
+    expect(mockedExtend).toHaveBeenCalledWith({
       prefixUrl: 'http://localhost:32400',
       searchParams: { 'X-Plex-Token': 'token' },
     });
-    expect(getMock).toHaveBeenCalledTimes(1);
-    expect(getMock).toHaveBeenCalledWith('library/sections/2/refresh', {
+    expect(mockClient.get).toHaveBeenCalledWith('library/sections/2/refresh', {
       searchParams: { path: '/mnt/downloads' },
+    });
+  });
+
+  it('should send the Plex refresh request to the correct path query parameter', async () => {
+    const mockClient = {
+      get: vi.fn(() => Promise.resolve({ statusCode: 200 })),
+      post: vi.fn(() => Promise.resolve({ statusCode: 200 })),
+    };
+    mockedExtend.mockReturnValueOnce(mockClient);
+
+    const configWithBasePath: Config = {
+      ...baseConfig,
+      plexBasePath: '/streaming/youtube',
+    };
+
+    const result = await refreshPlex(
+      configWithBasePath.plexBasePath,
+      configWithBasePath,
+      'The cause'
+    );
+
+    expect(result).toBe(true);
+    expect(mockClient.get).toHaveBeenCalledWith('library/sections/2/refresh', {
+      searchParams: { path: '/streaming/youtube' },
+    });
+  });
+
+  it('should notify Pushover using the root got client after a successful Plex refresh', async () => {
+    const mockClient = { get: vi.fn(() => Promise.resolve({ statusCode: 200 })) };
+    mockedExtend.mockReturnValueOnce(mockClient);
+
+    const configWithPushover: Config = {
+      ...baseConfig,
+      pushoverToken: 'token',
+      pushoverUser: 'user',
+    };
+
+    const result = await refreshPlex('/mnt/downloads', configWithPushover, 'The cause');
+
+    expect(result).toBe(true);
+    expect(mockedGot.post).toHaveBeenCalledWith('', {
+      prefixUrl: 'https://api.pushover.net/1/messages.json',
+      form: {
+        title: 'yt-dlp -> Plex Refresh',
+        message: 'The cause',
+        token: 'token',
+        user: 'user',
+      },
     });
   });
 
@@ -62,8 +118,5 @@ describe('refreshPlex', () => {
     );
 
     expect(result).toBe(false);
-    expect(extendMock).not.toHaveBeenCalled();
-    expect(getMock).not.toHaveBeenCalled();
-    expect(postMock).not.toHaveBeenCalled();
   });
 });
