@@ -1,6 +1,6 @@
 import got from 'got';
-import type { Config } from './lib/config.js';
-import { handleGotError } from './lib/utils.js';
+import type { Config } from './config.js';
+import { handleGotError } from './utils.js';
 
 function createPlexClient(config: { plexUrl: string; plexToken: string }) {
   return got.extend({
@@ -27,10 +27,12 @@ function validatePushoverConfig(
   return true;
 }
 
-async function notifyPushover(message: string, config: Config): Promise<void> {
+export async function notifyPushover(message: string, config: Config): Promise<void> {
   if (!validatePushoverConfig(config)) {
     return;
   }
+
+  console.log(`Notifying Pushover with ${message}`);
 
   try {
     await got.post('', {
