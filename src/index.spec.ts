@@ -6,7 +6,9 @@ import fs from 'node:fs/promises';
 
 import { getConfig } from './lib/config.js';
 import { envSchema } from './schema.js';
-import { buildYtDlpArgs, downloadChannel } from './index.js';
+import * as channels from './lib/channel.js';
+import * as indexModule from './index.js';
+import * as plex from './lib/plex.js';
 import type { Config } from './lib/config.js';
 
 vi.mock('node:child_process', () => ({
@@ -15,8 +17,10 @@ vi.mock('node:child_process', () => ({
 
 import { spawn } from 'node:child_process';
 const mockSpawn = vi.mocked(spawn);
+const { buildYtDlpArgs, downloadChannel, runOnce } = indexModule;
 
-const TEST_CHANNEL = 'https://www.youtube.com/@testchannel';
+const TEST_CHANNEL_NAME = '@testchannel';
+const TEST_CHANNEL = `https://www.youtube.com/${TEST_CHANNEL_NAME}`;
 
 const baseConfig: Config = {
   downloadPath: '/mnt/downloads',
@@ -236,9 +240,14 @@ describe('buildYtDlpArgs', () => {
 });
 
 describe('downloadChannel', () => {
-  function makeFakeChild(exitCode: number | null = 0): EventEmitter {
+  function makeFakeChild(exitCode: number | null = 0, onBeforeClose?: () => void): EventEmitter {
     const child = new EventEmitter();
-    setTimeout(() => child.emit('close', exitCode), 20);
+    setTimeout(() => {
+      if (onBeforeClose) {
+        onBeforeClose();
+      }
+      child.emit('close', exitCode);
+    }, 20);
     return child;
   }
 
@@ -289,23 +298,24 @@ describe('downloadChannel', () => {
     );
   });
 
-  it('should detect newly created files after yt-dlp exits', async () => {
+  it('should refresh Plex when downloads produce new files', async () => {
     const config = await makeTempDownloadConfig();
-    const child = makeFakeChild(0);
-    mockSpawn.mockReturnValueOnce(child as ReturnType<typeof spawn>);
+    config.channels = [TEST_CHANNEL];
 
-    setTimeout(() => {
-      void (async () => {
-        await fs.mkdir(join(config.downloadPath, 'LowkoTV'), { recursive: true });
-        await fs.writeFile(join(config.downloadPath, 'LowkoTV', 'video.mp4'), 'dummy');
-      })();
-    }, 10);
+    const downloadChannelMock = vi.spyOn(channels, 'downloadChannel').mockResolvedValue({
+      code: 0,
+      downloadedFiles: [`/${TEST_CHANNEL_NAME}/new-video.mp4`],
+    });
+    const refreshPlexMock = vi.spyOn(plex, 'refreshPlex').mockResolvedValue(true);
 
-    await expect(downloadChannel(TEST_CHANNEL, config)).resolves.toEqual(
-      expect.objectContaining({
-        code: 0,
-        downloadedFiles: [join('LowkoTV', 'video.mp4')],
-      })
+    await runOnce(config);
+
+    expect(downloadChannelMock).toHaveBeenCalledOnce();
+    expect(refreshPlexMock).toHaveBeenCalledTimes(1);
+    expect(refreshPlexMock).toHaveBeenCalledWith(
+      `/streaming/youtube/${TEST_CHANNEL_NAME}`,
+      config,
+      `There are new episodes for ${TEST_CHANNEL} refreshing path for /streaming/youtube/${TEST_CHANNEL_NAME}`
     );
   });
 });
