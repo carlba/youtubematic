@@ -3,7 +3,7 @@ services:
     build: .
     user: "${UID:-501}:${GID:-20}"
     volumes:
-      - ./downloads:/mnt/downloads
+      - ./downloads:/downloads
     env_file:
       - .env
     restart: no

@@ -21,7 +21,7 @@ COPY . .
 # Compile TypeScript to JavaScript
 RUN npm run build
 
-VOLUME /mnt
+VOLUME /downloads
 
 # Run the script
 CMD ["node", "dist/index.js"]

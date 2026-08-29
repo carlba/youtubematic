@@ -23,7 +23,7 @@ const TEST_CHANNEL_NAME = '@testchannel';
 const TEST_CHANNEL = `https://www.youtube.com/${TEST_CHANNEL_NAME}`;
 
 const baseConfig: Config = {
-  downloadPath: '/mnt/downloads',
+  downloadPath: '/downloads',
   channels: [],
   maxEpisodes: null,
   maxAgeDays: null,
@@ -66,7 +66,7 @@ describe('getConfig', () => {
 
     const config = getConfig(envSchema);
 
-    expect(config.downloadPath).toBe('/mnt/downloads');
+    expect(config.downloadPath).toBe('/downloads');
     expect(config.channels).toEqual([]);
     expect(config.maxEpisodes).toBeNull();
     expect(config.maxAgeDays).toBeNull();
@@ -184,7 +184,7 @@ describe('buildYtDlpArgs', () => {
     const outputIndex = args.indexOf('--output');
 
     expect(outputIndex).toBeGreaterThan(-1);
-    expect(args[outputIndex + 1]).toBe(join('/mnt/downloads', '%(uploader)s', '%(title)s.%(ext)s'));
+    expect(args[outputIndex + 1]).toBe(join('/downloads', '%(uploader)s', '%(title)s.%(ext)s'));
   });
 
   it('should include --playlist-end when maxEpisodes is set', () => {

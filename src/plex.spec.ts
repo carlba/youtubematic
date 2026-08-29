@@ -17,7 +17,7 @@ import got from 'got';
 import { refreshPlex } from './lib/plex.js';
 
 const baseConfig: Config = {
-  downloadPath: '/mnt/downloads',
+  downloadPath: '/downloads',
   channels: [],
   maxEpisodes: null,
   maxAgeDays: null,
@@ -50,7 +50,7 @@ describe('refreshPlex', () => {
     const mockClient = { get: vi.fn(() => Promise.resolve({ statusCode: 200 })) };
     mockedExtend.mockReturnValueOnce(mockClient);
 
-    const result = await refreshPlex('/mnt/downloads', baseConfig, 'The cause');
+    const result = await refreshPlex('/downloads', baseConfig, 'The cause');
 
     expect(result).toBe(true);
     expect(mockedExtend).toHaveBeenCalledWith({
@@ -58,7 +58,7 @@ describe('refreshPlex', () => {
       searchParams: { 'X-Plex-Token': 'token' },
     });
     expect(mockClient.get).toHaveBeenCalledWith('library/sections/2/refresh', {
-      searchParams: { path: '/mnt/downloads' },
+      searchParams: { path: '/downloads' },
     });
   });
 
@@ -96,7 +96,7 @@ describe('refreshPlex', () => {
       pushoverUser: 'user',
     };
 
-    const result = await refreshPlex('/mnt/downloads', configWithPushover, 'The cause');
+    const result = await refreshPlex('/downloads', configWithPushover, 'The cause');
 
     expect(result).toBe(true);
     expect(mockedGot.post).toHaveBeenCalledWith('', {
@@ -112,7 +112,7 @@ describe('refreshPlex', () => {
 
   it('should return false when PLEX_TOKEN is missing', async () => {
     const result = await refreshPlex(
-      '/mnt/downloads',
+      '/downloads',
       { ...baseConfig, plexToken: null },
       'The Cause'
     );

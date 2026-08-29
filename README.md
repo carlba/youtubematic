@@ -21,7 +21,7 @@ cp .env.example .env
 
 | Variable | Description | Default |
 |---|---|---|
-| `DOWNLOAD_PATH` | Path where downloaded videos are stored | `/mnt/downloads` |
+| `DOWNLOAD_PATH` | Path where downloaded videos are stored | `/downloads` |
 | `CHANNELS` | Comma or newline-separated list of YouTube channel URLs | _(required)_ |
 | `MAX_EPISODES` | Maximum number of latest episodes to download per channel | _(no limit)_ |
 | `MAX_AGE_DAYS` | Only download entries uploaded within the last N days | _(no limit)_ |
@@ -42,7 +42,7 @@ docker compose up
 Downloads are organized under `DOWNLOAD_PATH` in subdirectories per channel uploader:
 
 ```
-/mnt/downloads/
+/downloads/
   ChannelName/
     Video Title.mp4
     Another Video.mp4

@@ -33,7 +33,7 @@ const channels = z
 
 export const envSchema = z
   .object({
-    DOWNLOAD_PATH: defaultString('/mnt/downloads'),
+    DOWNLOAD_PATH: defaultString('/downloads'),
     CHANNELS: channels,
     MAX_EPISODES: optionalNumber,
     MAX_AGE_DAYS: optionalNumber,
